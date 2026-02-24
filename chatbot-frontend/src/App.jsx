@@ -1,139 +1,81 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/App.jsx
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
     const [userInput, setUserInput] = useState('');
     const [chatLog, setChatLog] = useState([]);
     const [loading, setLoading] = useState(false);
-    const chatWindowRef = useRef(null);
-    const inputRef = useRef(null);
 
+    // Effect to load chat history from local storage when the app starts
     useEffect(() => {
-        // Load chat history from localStorage
-        try {
-            const storedChatLog = localStorage.getItem('chatLog');
-            if (storedChatLog) {
-                setChatLog(JSON.parse(storedChatLog));
-            }
-        } catch (error) {
-            console.error("Failed to load chat log from localStorage:", error);
+        const storedChatLog = localStorage.getItem('chatLog');
+        if (storedChatLog) {
+            setChatLog(JSON.parse(storedChatLog));
         }
-        
-        // Focus input on initial load
-        inputRef.current?.focus();
     }, []);
-
-    useEffect(() => {
-        // Scroll to bottom when chat updates
-        if (chatWindowRef.current) {
-            const { scrollHeight, clientHeight } = chatWindowRef.current;
-            chatWindowRef.current.scrollTo({
-                top: scrollHeight - clientHeight,
-                behavior: 'smooth'
-            });
-        }
-        
-        // Save to localStorage when chat updates (if not empty)
-        if (chatLog.length > 0) {
-            try {
-                localStorage.setItem('chatLog', JSON.stringify(chatLog));
-            } catch (error) {
-                console.error("Failed to save chat log to localStorage:", error);
-            }
-        }
-    }, [chatLog]);
-
-
-    const handleInputChange = (event) => {
-        setUserInput(event.target.value);
-    };
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        const trimmedInput = userInput.trim();
-        if (!trimmedInput || loading) return;
+        if (!userInput.trim()) return; // Don't send empty messages
 
-        // Add user message to chat
-        const userMessage = { type: 'user', text: trimmedInput };
-        setChatLog(prevChatLog => [...prevChatLog, userMessage]);
-        
+        const userMessage = { type: 'user', text: userInput };
+        const newChatLog = [...chatLog, userMessage];
+        setChatLog(newChatLog);
         setUserInput('');
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:8000/chat', {
+            // The API call to our FastAPI backend
+            const response = await fetch('https://special-space-garbanzo-p756wq45x7wfwwj-8000.app.github.dev/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_message: trimmedInput }),
+                body: JSON.stringify({ user_message: userInput }),
             });
 
             if (!response.ok) {
-                let errorDetail = `HTTP error! Status: ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    errorDetail = errorData.detail || errorDetail;
-                } catch (parseError) {
-                    errorDetail = `${errorDetail} ${response.statusText || ''}`.trim();
-                }
-                throw new Error(errorDetail);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
-            const botResponseText = data.response;
+            const botMessage = { type: 'bot', text: data.bot_response };
 
-            if (typeof botResponseText !== 'string' || !botResponseText) {
-                throw new Error("Received invalid or empty response from bot.");
-            }
+            // Update the chat log with the bot's response
+            const finalChatLog = [...newChatLog, botMessage];
+            setChatLog(finalChatLog);
 
-            // Add bot message to chat
-            setChatLog(prevChatLog => [
-                ...prevChatLog, 
-                { type: 'bot', text: botResponseText }
-            ]);
+            // Save the updated chat log to local storage for persistence
+            localStorage.setItem('chatLog', JSON.stringify(finalChatLog));
 
         } catch (error) {
             console.error('Error fetching chat response:', error);
-            
-            // Add error message to chat
-            setChatLog(prevChatLog => [
-                ...prevChatLog,
-                { 
-                    type: 'error', 
-                    text: `Error: ${error.message || 'Could not connect to the bot. Please try again.'}`
-                }
-            ]);
+            const errorMessage = { type: 'error', text: 'Sorry, something went wrong. Please try again.' };
+            setChatLog(prev => [...prev, errorMessage]);
         } finally {
             setLoading(false);
-            inputRef.current?.focus();
         }
     };
 
     return (
         <div className="App">
-            <h1 className="chat-title">AI Chat Assistant</h1>
-
-            <div className="chat-window" ref={chatWindowRef} aria-live="polite">
+            <h1>AI Chatbot</h1>
+            <div className="chat-window">
                 {chatLog.map((message, index) => (
                     <div key={index} className={`message ${message.type}`}>
                         {message.text}
                     </div>
                 ))}
-                {loading && <div className="loading-indicator">Bot is thinking...</div>}
+                {loading && <div className="message bot">Loading...</div>}
             </div>
-
-            <form className="chat-form" onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="chat-form">
                 <input
-                    ref={inputRef}
                     type="text"
                     value={userInput}
-                    onChange={handleInputChange}
+                    onChange={(e) => setUserInput(e.target.value)}
                     placeholder="Type your message..."
                     disabled={loading}
-                    aria-label="Chat message input"
                 />
-                <button type="submit" disabled={loading}>
-                    Send
-                </button>
+                <button type="submit" disabled={loading}>Send</button>
             </form>
         </div>
     );

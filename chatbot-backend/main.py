@@ -1,3 +1,4 @@
+##main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
@@ -22,14 +23,14 @@ except Exception as e:
 app = FastAPI(title="AI Chatbot API", description="API for interacting with a Gemini chatbot.", version="1.0.0")
 
 # --- CORS Configuration ---
-origins = [
-    "http://localhost:5173",  # Development frontend
-    # Add your deployed frontend URL here (e.g., "https://your-deployed-app.com")
-]
+# origins = [
+#     "http://localhost:5173",  # Development frontend
+#     # Add your deployed frontend URL here (e.g., "https://your-deployed-app.com")
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["POST", "GET"],  # Only allow necessary methods
     allow_headers=["*"],
@@ -54,7 +55,7 @@ async def chat(chat_input: ChatInput):
     """
     try:
         response = model.invoke(chat_input.user_message)
-        return {"response": response.content}
+        return {"bot_response": response.content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating content: {e}")
     
